@@ -1,0 +1,18 @@
+---
+extends: default
+
+ignore:
+  - .git/
+  - vendor/
+
+rules:
+  document-start:
+    ignore:
+      - deploy/
+  indentation:
+    ignore:
+      - deploy/
+  line-length:
+    ignore:
+      - deploy/
+      - .github/

@@ -1,0 +1,70 @@
+---
+name: Run Golang tests
+
+# yamllint disable-line rule:truthy
+on:
+  pull_request:
+    branches:
+      - "*"
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7
+
+      - name: Set up Golang
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Run "make test"
+        run: make test
+
+      - name: Run "make vet"
+        run: make vet
+
+      - name: Check for uncommitted changes
+        run: make check-all-committed
+
+      - name: Show the uncommitted "git diff"
+        if: ${{ failure() }}
+        run: git diff ; false
+
+  test-alerts:
+    name: test-alerts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7
+
+      - name: Set up Golang
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install promtool
+        run: |
+          PROM_VERSION=2.53.0
+          curl -sL "https://github.com/prometheus/prometheus/releases/download/v${PROM_VERSION}/prometheus-${PROM_VERSION}.linux-amd64.tar.gz" | tar xz
+          sudo mv "prometheus-${PROM_VERSION}.linux-amd64/promtool" /usr/local/bin/
+
+      - name: Run "make test-alerts"
+        run: make test-alerts
+
+  go_mod_verify:
+    name: go_mod_verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7
+
+      - name: Set up Golang
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Verify Go modules
+        run: go mod verify

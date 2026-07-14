@@ -1,0 +1,55 @@
+defaults:
+  actions:
+    queue:
+      name: default
+
+queue_rules:
+  - name: default
+    merge_method: rebase
+    update_method: rebase
+    merge_conditions:
+      - "status-success=lint"
+      - "status-success=test"
+      - "status-success=test-alerts"
+      - "status-success=go_mod_verify"
+      - "status-success=build-image"
+      - "status-success=codespell"
+
+pull_request_rules:
+  - name: remove outdated approvals
+    conditions:
+      - base~=^(main)|(release-.+)$
+    actions:
+      dismiss_reviews:
+        approved: true
+        changes_requested: false
+  - name: merge after two approvals
+    conditions:
+      - base~=^(main)|(release-.+)$
+      - label!=DNM
+      - "#approved-reviews-by>=2"
+      - "#changes-requested-reviews-by=0"
+      - "status-success=lint"
+      - "status-success=test"
+      - "status-success=test-alerts"
+      - "status-success=go_mod_verify"
+      - "status-success=build-image"
+      - "status-success=codespell"
+    actions:
+      queue: {}
+      dismiss_reviews: {}
+  - name: pr title contains DNM
+    conditions:
+      - title~=DNM
+    actions:
+      label:
+        add:
+          - DNM
+  - name: request reviews from contributors
+    conditions:
+      - -closed
+      - -draft
+    actions:
+      request_reviews:
+        users_from_teams:
+          - "@csi-addons/csi-volume-device-exporter-contributors"
