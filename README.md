@@ -99,41 +99,19 @@ oc apply -n csi-volume-device-exporter -f deploy/podmonitor.yaml
 | `NODE_NAME` | Yes | Kubernetes node name (set via Downward API `spec.nodeName`) |
 | `RUNBOOK_URL_TEMPLATE` | No | printf-style template for alert runbook URLs, e.g. `https://example.com/runbooks/%s.md` |
 
-## Metrics
+## Metrics and Alerts
 
-### Volume mapping
+The exporter exposes Prometheus metrics on the `/metrics` endpoint and ships
+PrometheusRule alert definitions for storage path health correlation.
 
-| Metric | Type | Labels | Description |
-|---|---|---|---|
-| `csiaddons_volume_node_device_info` | Gauge (always 1) | `node`, `volume_handle`, `driver`, `device` | Maps a CSI volume to its block device |
-
-### Operational (self-monitoring)
-
-| Metric | Type | Labels |
-|---|---|---|
-| `csiaddons_volume_device_exporter_discovery_errors_total` | Counter | `discoverer` |
-| `csiaddons_volume_device_exporter_volumes_discovered` | Gauge | `driver` |
-| `csiaddons_volume_device_exporter_last_successful_discovery_timestamp_seconds` | Gauge | — |
-
-## Alerts
-
-Alert rules are defined in Go under `pkg/monitoring/rules/alerts/` and rendered to Kubernetes-deployable YAML:
-
-| Alert | Severity | Description |
-|---|---|---|
-| `CSIAddonsVolumeMultipathDegraded` | warning | A PV-backed DM-multipath device has at least one non-active path |
-| `CSIAddonsVolumeMultipathLost` | critical | All paths to a PV-backed multipath device are down |
-| `CSIAddonsVolumeNVMeSubsystemDegraded` | warning | A PV-backed NVMe-oF subsystem has at least one non-live controller |
-| `CSIAddonsVolumeNVMeSubsystemLost` | critical | All NVMe-oF controller paths for a PV-backed subsystem are dead |
-| `CSIAddonsVolumeDeviceExporterDown` | warning | No exporter targets have been scraped for 5 minutes |
+See [docs/metrics.md](docs/metrics.md) for the full metrics and alerts
+reference, and [docs/runbooks/](docs/runbooks/) for alert runbooks.
 
 Deploy the alert rules:
 
 ```bash
 kubectl apply -f pkg/monitoring/rules/alerts.yaml
 ```
-
-Runbooks are in [`docs/runbooks/`](docs/runbooks/).
 
 ## Security
 
