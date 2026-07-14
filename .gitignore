@@ -1,0 +1,11 @@
+bin/
+*.test
+*.out
+coverage.html
+coverage.txt
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+vendor/

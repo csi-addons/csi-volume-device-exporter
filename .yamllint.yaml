@@ -1,0 +1,22 @@
+---
+extends: default
+
+ignore:
+  - .git/
+  # vendor/ are maintained elsewhere
+  - vendor/
+  # pkg/monitoring/rules/ contains generated contents
+  - pkg/monitoring/rules/
+  - hack/
+
+rules:
+  document-start:
+    ignore:
+      - deploy/
+  indentation:
+    ignore:
+      - deploy/
+  line-length:
+    ignore:
+      - deploy/
+      - .github/
