@@ -1,0 +1,19 @@
+---
+name: Codespell
+# yamllint disable-line rule:truthy
+on:
+  pull_request:
+    branches:
+      - '*'
+jobs:
+  codespell:
+    name: codespell
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: codespell
+        uses: codespell-project/actions-codespell@v2
+        with:
+          skip: .git,go.mod,go.sum,vendor,*.svg
+          check_filenames: true
+          check_hidden: true

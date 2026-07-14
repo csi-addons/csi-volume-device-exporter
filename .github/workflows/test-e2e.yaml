@@ -1,0 +1,144 @@
+---
+name: e2e
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      storage_class:
+        description: "StorageClass to use for e2e tests"
+        required: false
+        default: ""
+      skip_block:
+        description: "Skip block volume tests"
+        required: false
+        default: "false"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: e2e-test
+
+      - name: Install VolumeSnapshot CRDs
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.6.0/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.6.0/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.6.0/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml
+
+      - name: Install CSI hostpath driver
+        run: |
+          git clone --depth 1 https://github.com/kubernetes-csi/csi-driver-host-path.git /tmp/csi-driver-host-path
+          /tmp/csi-driver-host-path/deploy/kubernetes-latest/deploy.sh
+
+      - name: Wait for CSI driver ready
+        run: |
+          kubectl rollout status statefulset/csi-hostpathplugin --timeout=120s -n default
+          kubectl wait --for=condition=Ready pod -l app.kubernetes.io/instance=hostpath.csi.k8s.io \
+            --timeout=120s -n default
+
+      - name: Create StorageClass
+        run: |
+          kubectl apply -f - <<EOF
+          apiVersion: storage.k8s.io/v1
+          kind: StorageClass
+          metadata:
+            name: csi-hostpath
+            annotations:
+              storageclass.kubernetes.io/is-default-class: "true"
+          provisioner: hostpath.csi.k8s.io
+          reclaimPolicy: Delete
+          volumeBindingMode: Immediate
+          allowVolumeExpansion: true
+          EOF
+
+      - name: Build exporter image
+        run: |
+          make image IMAGE_REPO=quay.io/csiaddons/csi-volume-device-exporter IMAGE_TAG=e2e CRI=docker
+
+      - name: Load image into kind
+        run: |
+          kind load docker-image quay.io/csiaddons/csi-volume-device-exporter:e2e --name e2e-test
+
+      - name: Deploy exporter
+        run: |
+          kubectl create namespace csi-volume-device-exporter
+          kubectl apply -n csi-volume-device-exporter -f deploy/daemonset.yaml
+          kubectl set image daemonset/csi-volume-device-exporter exporter=quay.io/csiaddons/csi-volume-device-exporter:e2e \
+            -n csi-volume-device-exporter
+          kubectl patch daemonset csi-volume-device-exporter -n csi-volume-device-exporter \
+            --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]'
+          kubectl patch daemonset csi-volume-device-exporter -n csi-volume-device-exporter \
+            --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/args","value":["--listen-address=:9710","--poll-interval=10s","--log-level=debug"]}]'
+          kubectl rollout status daemonset/csi-volume-device-exporter \
+            -n csi-volume-device-exporter --timeout=120s
+
+      - name: Create mock CSI volumes
+        run: |
+          docker exec e2e-test-control-plane bash -c '
+            # Filesystem volume backed by a loop device
+            dd if=/dev/zero of=/tmp/mock-fs.img bs=1M count=10 2>/dev/null
+            LOOP=$(losetup --find --show /tmp/mock-fs.img)
+            mkfs.ext4 -qF "$LOOP"
+            POD_UID="e2e-00000000-0000-0000-0000-111111111111"
+            PV="e2e-mock-fs-pv"
+            DIR="/var/lib/kubelet/pods/$POD_UID/volumes/kubernetes.io~csi/$PV"
+            mkdir -p "$DIR/mount"
+            mount "$LOOP" "$DIR/mount"
+            cat > "$DIR/vol_data.json" <<EOF
+          {"volumeHandle":"e2e-mock-fs-handle","driverName":"mock.csi.test","specVolID":"$PV","volumeLifecycleMode":"Persistent"}
+          EOF
+            echo "Mock FS volume: loop=$LOOP"
+
+            # Second filesystem volume (for multi-volume test)
+            dd if=/dev/zero of=/tmp/mock-fs2.img bs=1M count=10 2>/dev/null
+            LOOP2=$(losetup --find --show /tmp/mock-fs2.img)
+            mkfs.ext4 -qF "$LOOP2"
+            PV2="e2e-mock-fs-pv2"
+            DIR2="/var/lib/kubelet/pods/$POD_UID/volumes/kubernetes.io~csi/$PV2"
+            mkdir -p "$DIR2/mount"
+            mount "$LOOP2" "$DIR2/mount"
+            cat > "$DIR2/vol_data.json" <<EOF
+          {"volumeHandle":"e2e-mock-fs-handle-2","driverName":"mock.csi.test","specVolID":"$PV2","volumeLifecycleMode":"Persistent"}
+          EOF
+            echo "Mock FS volume 2: loop=$LOOP2"
+          '
+
+      - name: Wait for exporter discovery cycle
+        run: sleep 15
+
+      - name: Run e2e tests
+        env:
+          E2E_STORAGE_CLASS: ${{ github.event.inputs.storage_class || 'csi-hostpath' }}
+          E2E_SKIP_BLOCK: ${{ github.event.inputs.skip_block || 'false' }}
+          E2E_MOCK_FS_HANDLE: "e2e-mock-fs-handle"
+          E2E_MOCK_FS_HANDLE_2: "e2e-mock-fs-handle-2"
+          E2E_KIND_NODE: "e2e-test-control-plane"
+        run: |
+          make test-e2e
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "=== Exporter pods ==="
+          kubectl get pods -n csi-volume-device-exporter -o wide
+          echo "=== Exporter logs ==="
+          kubectl logs -n csi-volume-device-exporter -l app.kubernetes.io/name=csi-volume-device-exporter --tail=100
+          echo "=== Test namespace pods ==="
+          kubectl get pods -n csi-exporter-e2e-test -o wide || true
+          echo "=== PVCs ==="
+          kubectl get pvc -n csi-exporter-e2e-test || true
+          echo "=== PVs ==="
+          kubectl get pv || true
