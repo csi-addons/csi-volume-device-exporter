@@ -33,4 +33,4 @@ updates:
     commit-message:
       prefix: "ci"
     labels:
-      - ci
+      - testing
