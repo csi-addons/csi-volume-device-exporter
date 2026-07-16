@@ -61,12 +61,14 @@ deploy-openshift:
 	kubectl apply -n $(NAMESPACE) -f deploy/scc.yaml
 	kubectl apply -n $(NAMESPACE) -f deploy/daemonset.yaml
 	kubectl apply -n $(NAMESPACE) -f deploy/podmonitor.yaml
+	kubectl apply -n $(NAMESPACE) -f pkg/monitoring/rules/alerts.yaml
 
 undeploy:
 	kubectl delete -f deploy/daemonset.yaml --ignore-not-found
 	kubectl delete -f deploy/podmonitor.yaml --ignore-not-found
 
 undeploy-openshift:
+	kubectl delete -n $(NAMESPACE) -f pkg/monitoring/rules/alerts.yaml --ignore-not-found
 	kubectl delete -n $(NAMESPACE) -f deploy/podmonitor.yaml --ignore-not-found
 	kubectl delete -n $(NAMESPACE) -f deploy/daemonset.yaml --ignore-not-found
 	kubectl delete -n $(NAMESPACE) -f deploy/scc.yaml --ignore-not-found

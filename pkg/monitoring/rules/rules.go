@@ -47,7 +47,7 @@ type prometheusRuleManifest struct {
 
 type prometheusRuleMetadata struct {
 	Name      string            `yaml:"name"`
-	Namespace string            `yaml:"namespace"`
+	Namespace string            `yaml:"namespace,omitempty"`
 	Labels    map[string]string `yaml:"labels,omitempty"`
 }
 
