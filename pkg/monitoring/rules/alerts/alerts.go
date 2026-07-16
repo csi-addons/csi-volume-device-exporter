@@ -98,7 +98,7 @@ func multipathAlerts() []Alert {
 	const pvToMultipathExpr = `label_replace(
   label_replace(
     kube_persistentvolume_info,
-    "volume_handle", "$1", "csiaddons_volume_handle", "(.+)"
+    "volume_handle", "$1", "csi_volume_handle", "(.+)"
   )
   * on(volume_handle) group_left(device, node, driver)
   csiaddons_volume_node_device_info,
@@ -151,7 +151,7 @@ node_dmmultipath_device_info`
 func nvmeSubsystemAlerts() []Alert {
 	const pvToNVMeExpr = `label_replace(
   kube_persistentvolume_info,
-  "volume_handle", "$1", "csiaddons_volume_handle", "(.+)"
+  "volume_handle", "$1", "csi_volume_handle", "(.+)"
 )
 * on(volume_handle) group_left(device, node, driver)
 csiaddons_volume_node_device_info{device=~"nvme.*"}

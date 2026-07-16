@@ -13,7 +13,7 @@ tests:
   # when a path goes offline, then clear once the fault is resolved.
   - interval: 1m
     input_series:
-      - series: 'kube_persistentvolume_info{persistentvolume="pvc-abc",csiaddons_volume_handle="vol-handle-1"}'
+      - series: 'kube_persistentvolume_info{persistentvolume="pvc-abc",csi_volume_handle="vol-handle-1"}'
         values: "1x17"
       - series: 'csiaddons_volume_node_device_info{node="node-1",volume_handle="vol-handle-1",driver="csi.example.com",device="dm-0"}'
         values: "1x17"
@@ -40,7 +40,7 @@ tests:
               severity: warning
               alertname: CSIAddonsVolumeMultipathDegraded
               persistentvolume: pvc-abc
-              csiaddons_volume_handle: "vol-handle-1"
+              csi_volume_handle: "vol-handle-1"
               volume_handle: "vol-handle-1"
               sysfs_name: dm-0
               node: node-1
@@ -54,7 +54,7 @@ tests:
   # Alert must not fire when all paths are active (running)
   - interval: 1m
     input_series:
-      - series: 'kube_persistentvolume_info{persistentvolume="pvc-abc",csiaddons_volume_handle="vol-handle-1"}'
+      - series: 'kube_persistentvolume_info{persistentvolume="pvc-abc",csi_volume_handle="vol-handle-1"}'
         values: "1x10"
       - series: 'csiaddons_volume_node_device_info{node="node-1",volume_handle="vol-handle-1",driver="csi.example.com",device="dm-0"}'
         values: "1x10"
@@ -68,10 +68,10 @@ tests:
         alertname: CSIAddonsVolumeMultipathDegraded
         exp_alerts: []
 
-  # Alert must not fire for a non-CSI PV (empty csiaddons_volume_handle — (.+) guard)
+  # Alert must not fire for a non-CSI PV (empty csi_volume_handle — (.+) guard)
   - interval: 1m
     input_series:
-      - series: 'kube_persistentvolume_info{persistentvolume="pvc-nfs",csiaddons_volume_handle=""}'
+      - series: 'kube_persistentvolume_info{persistentvolume="pvc-nfs",csi_volume_handle=""}'
         values: "1x10"
       - series: 'node_dmmultipath_device_info{sysfs_name="dm-0",device="mpathA",node="node-1",uuid="mpath-123"}'
         values: "1x10"
@@ -86,7 +86,7 @@ tests:
   # Alert must not fire when the offline path is on a different node than the PV
   - interval: 1m
     input_series:
-      - series: 'kube_persistentvolume_info{persistentvolume="pvc-abc",csiaddons_volume_handle="vol-handle-1"}'
+      - series: 'kube_persistentvolume_info{persistentvolume="pvc-abc",csi_volume_handle="vol-handle-1"}'
         values: "1x10"
       - series: 'csiaddons_volume_node_device_info{node="node-1",volume_handle="vol-handle-1",driver="csi.example.com",device="dm-0"}'
         values: "1x10"
@@ -108,7 +108,7 @@ tests:
   # Alert must fire after 1m when all paths are down
   - interval: 1m
     input_series:
-      - series: 'kube_persistentvolume_info{persistentvolume="pvc-abc",csiaddons_volume_handle="vol-handle-1"}'
+      - series: 'kube_persistentvolume_info{persistentvolume="pvc-abc",csi_volume_handle="vol-handle-1"}'
         values: "1x10"
       - series: 'csiaddons_volume_node_device_info{node="node-1",volume_handle="vol-handle-1",driver="csi.example.com",device="dm-0"}'
         values: "1x10"
@@ -134,7 +134,7 @@ tests:
               severity: critical
               alertname: CSIAddonsVolumeMultipathLost
               persistentvolume: pvc-abc
-              csiaddons_volume_handle: "vol-handle-1"
+              csi_volume_handle: "vol-handle-1"
               volume_handle: "vol-handle-1"
               sysfs_name: dm-0
               node: node-1
@@ -144,7 +144,7 @@ tests:
   # Alert must not fire when at least one path is active
   - interval: 1m
     input_series:
-      - series: 'kube_persistentvolume_info{persistentvolume="pvc-abc",csiaddons_volume_handle="vol-handle-1"}'
+      - series: 'kube_persistentvolume_info{persistentvolume="pvc-abc",csi_volume_handle="vol-handle-1"}'
         values: "1x10"
       - series: 'csiaddons_volume_node_device_info{node="node-1",volume_handle="vol-handle-1",driver="csi.example.com",device="dm-0"}'
         values: "1x10"
@@ -165,7 +165,7 @@ tests:
   # Alert must fire after 5m when one NVMe controller is not live
   - interval: 1m
     input_series:
-      - series: 'kube_persistentvolume_info{persistentvolume="pvc-nvme",csiaddons_volume_handle="vol-nvme-1"}'
+      - series: 'kube_persistentvolume_info{persistentvolume="pvc-nvme",csi_volume_handle="vol-nvme-1"}'
         values: "1x12"
       - series: 'csiaddons_volume_node_device_info{node="node-1",volume_handle="vol-nvme-1",driver="nvme.csi.example.com",device="nvme0n1"}'
         values: "1x12"
@@ -191,7 +191,7 @@ tests:
               severity: warning
               alertname: CSIAddonsVolumeNVMeSubsystemDegraded
               persistentvolume: pvc-nvme
-              csiaddons_volume_handle: "vol-nvme-1"
+              csi_volume_handle: "vol-nvme-1"
               volume_handle: "vol-nvme-1"
               node: node-1
               device: nvme0n1
@@ -205,7 +205,7 @@ tests:
   # Alert must fire after 1m when all NVMe controllers are dead
   - interval: 1m
     input_series:
-      - series: 'kube_persistentvolume_info{persistentvolume="pvc-nvme",csiaddons_volume_handle="vol-nvme-1"}'
+      - series: 'kube_persistentvolume_info{persistentvolume="pvc-nvme",csi_volume_handle="vol-nvme-1"}'
         values: "1x10"
       - series: 'csiaddons_volume_node_device_info{node="node-1",volume_handle="vol-nvme-1",driver="nvme.csi.example.com",device="nvme0n1"}'
         values: "1x10"
@@ -231,7 +231,7 @@ tests:
               severity: critical
               alertname: CSIAddonsVolumeNVMeSubsystemLost
               persistentvolume: pvc-nvme
-              csiaddons_volume_handle: "vol-nvme-1"
+              csi_volume_handle: "vol-nvme-1"
               volume_handle: "vol-nvme-1"
               node: node-1
               device: nvme0n1
@@ -241,7 +241,7 @@ tests:
   # Alert must not fire when at least one controller is live
   - interval: 1m
     input_series:
-      - series: 'kube_persistentvolume_info{persistentvolume="pvc-nvme",csiaddons_volume_handle="vol-nvme-1"}'
+      - series: 'kube_persistentvolume_info{persistentvolume="pvc-nvme",csi_volume_handle="vol-nvme-1"}'
         values: "1x10"
       - series: 'csiaddons_volume_node_device_info{node="node-1",volume_handle="vol-nvme-1",driver="nvme.csi.example.com",device="nvme0n1"}'
         values: "1x10"
