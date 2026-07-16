@@ -14,7 +14,7 @@ spec:
                 (label_replace(
                   label_replace(
                     kube_persistentvolume_info,
-                    "volume_handle", "$1", "csiaddons_volume_handle", "(.+)"
+                    "volume_handle", "$1", "csi_volume_handle", "(.+)"
                   )
                   * on(volume_handle) group_left(device, node, driver)
                   csiaddons_volume_node_device_info,
@@ -38,7 +38,7 @@ spec:
                 (label_replace(
                   label_replace(
                     kube_persistentvolume_info,
-                    "volume_handle", "$1", "csiaddons_volume_handle", "(.+)"
+                    "volume_handle", "$1", "csi_volume_handle", "(.+)"
                   )
                   * on(volume_handle) group_left(device, node, driver)
                   csiaddons_volume_node_device_info,
@@ -61,7 +61,7 @@ spec:
               expr: |-
                 (label_replace(
                   kube_persistentvolume_info,
-                  "volume_handle", "$1", "csiaddons_volume_handle", "(.+)"
+                  "volume_handle", "$1", "csi_volume_handle", "(.+)"
                 )
                 * on(volume_handle) group_left(device, node, driver)
                 csiaddons_volume_node_device_info{device=~"nvme.*"}
@@ -82,7 +82,7 @@ spec:
               expr: |-
                 (label_replace(
                   kube_persistentvolume_info,
-                  "volume_handle", "$1", "csiaddons_volume_handle", "(.+)"
+                  "volume_handle", "$1", "csi_volume_handle", "(.+)"
                 )
                 * on(volume_handle) group_left(device, node, driver)
                 csiaddons_volume_node_device_info{device=~"nvme.*"}
