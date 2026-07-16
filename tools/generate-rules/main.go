@@ -4,8 +4,9 @@
 // Flags:
 //
 //	-namespace <ns>   Kubernetes namespace embedded in the PrometheusRule manifest.
-//	                  Falls back to the NAMESPACE environment variable, then
-//	                  defaults to "NAMESPACE" as a placeholder when neither is set.
+//	                  Falls back to the NAMESPACE environment variable.
+//	                  If neither is set, the namespace field is omitted from the
+//	                  manifest (deployers set it at apply time).
 package main
 
 import (
@@ -25,10 +26,6 @@ func main() {
 	if *namespace == "" {
 		*namespace = os.Getenv("NAMESPACE")
 	}
-	if *namespace == "" {
-		*namespace = "NAMESPACE"
-		fmt.Fprintln(os.Stderr, "generate-rules: namespace not set via -namespace flag or NAMESPACE env var; using placeholder \"NAMESPACE\"")
-	}
 
 	// Resolve the repository root relative to this file so the tool works
 	// regardless of the working directory when invoked via `go run`.
@@ -40,5 +37,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "generate-rules: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("wrote pkg/monitoring/rules/alerts.yaml (namespace: %s)\n", *namespace)
+	if *namespace == "" {
+		fmt.Println("wrote pkg/monitoring/rules/alerts.yaml (namespace: omitted, set at deploy time)")
+	} else {
+		fmt.Printf("wrote pkg/monitoring/rules/alerts.yaml (namespace: %s)\n", *namespace)
+	}
 }

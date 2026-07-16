@@ -2,7 +2,6 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
     name: csi-volume-path-health
-    namespace: NAMESPACE
     labels:
         app.kubernetes.io/name: csi-volume-device-exporter
 spec:

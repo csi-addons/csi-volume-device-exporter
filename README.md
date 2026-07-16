@@ -110,7 +110,7 @@ reference, and [docs/runbooks/](docs/runbooks/) for alert runbooks.
 Deploy the alert rules:
 
 ```bash
-kubectl apply -f pkg/monitoring/rules/alerts.yaml
+kubectl apply -n <namespace> -f pkg/monitoring/rules/alerts.yaml
 ```
 
 ## Security
