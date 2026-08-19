@@ -85,9 +85,6 @@ spec:
               mountPath: /var/lib/kubelet
               readOnly: true
               mountPropagation: HostToContainer
-            - name: trident-tracking
-              mountPath: /host/trident/tracking
-              readOnly: true
             - name: host-sys
               mountPath: /host/sys
               readOnly: true
@@ -95,10 +92,6 @@ spec:
         - name: kubelet-root
           hostPath:
             path: /var/lib/kubelet
-        - name: trident-tracking
-          hostPath:
-            path: /var/lib/trident/tracking
-            type: DirectoryOrCreate
         - name: host-sys
           hostPath:
             path: /sys
