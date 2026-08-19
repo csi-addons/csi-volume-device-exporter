@@ -35,19 +35,12 @@ The CSI Volume Device Exporter provides the **join key** between Kubernetes volu
 ┌─────────────────────────────────────────────────────────┐
 │  Per-Node DaemonSet: csi-volume-device-exporter         │
 │                                                         │
-│  Discoverers (ordered by precedence):                   │
-│  1. Kubelet (authoritative):                            │
-│  2. Trident — reads /var/lib/trident/tracking/*.json    │
-│  3. HPE — reads deviceInfo.json from plugin dirs        │
-│     a. Walk kubelet pod directories                     │
-│     b. Read vol_data.json (CSI volume identity)         │
-│     c. stat() mount point → device major:minor          │
-│     d. Resolve via sysfs → kernel device name           │
-│     e. Walk DM slaves if LUKS → find multipath device   │
-│                                                         │
-│  Kubelet runs first and wins on conflicts; optional     │
-│  discoverers fill gaps only. Reconcile runs only when   │
-│  kubelet discoverer succeeds.                           │
+│  Kubelet discovery:                                     │
+│  1. Walk kubelet pod directories                        │
+│  2. Read vol_data.json (CSI volume identity)            │
+│  3. stat() mount point / device file → major:minor      │
+│  4. Resolve via sysfs → kernel device name              │
+│  5. Walk DM slaves if LUKS → find multipath device      │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -83,14 +76,11 @@ The CSI Volume Device Exporter provides the **join key** between Kubernetes volu
 3. Read `vol_data.json` from the plugin staging path for volume identity
 4. Same sysfs resolution as filesystem volumes
 
-### Driver-Specific Discoverers
-
-- **Trident**: Reads `/var/lib/trident/tracking/*.json` for direct volume-to-device mapping. Disabled automatically if the directory doesn't exist at startup.
-- **HPE**: Reads `deviceInfo.json` from kubelet plugin directories.
-
 ### Network Filesystem Filtering
 
 NFS, CephFS, and other network filesystems use pseudo-device numbers (major=0) that don't exist in `/sys/dev/block/`. Resolution fails naturally — no fragile filesystem-type list needed.
+
+Vendor-private files (for example Trident tracking JSON or HPE `deviceInfo.json`) are not parsed. Kubelet staging is the only discovery path so the exporter stays driver-agnostic and does not require vendor-specific test configurations.
 
 ## Metrics
 

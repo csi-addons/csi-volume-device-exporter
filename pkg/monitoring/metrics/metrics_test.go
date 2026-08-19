@@ -13,8 +13,8 @@ func TestReconcile_AddsNewMetrics(t *testing.T) {
 	m := New()
 
 	volumes := map[string]discovery.VolumeDevice{
-		"vol-1": {VolumeHandle: "vol-1", Driver: "csi.trident.netapp.io", Device: "dm-0", Node: "node1"},
-		"vol-2": {VolumeHandle: "vol-2", Driver: "csi.hpe.com", Device: "dm-1", Node: "node1"},
+		"vol-1": {VolumeHandle: "vol-1", Driver: "driver-a", Device: "dm-0", Node: "node1"},
+		"vol-2": {VolumeHandle: "vol-2", Driver: "driver-b", Device: "dm-1", Node: "node1"},
 	}
 
 	m.Reconcile(volumes)
@@ -65,17 +65,17 @@ func TestReconcile_UpdatesVolumesDiscovered(t *testing.T) {
 	m := New()
 
 	volumes := map[string]discovery.VolumeDevice{
-		"vol-1": {VolumeHandle: "vol-1", Driver: "csi.trident.netapp.io", Device: "dm-0", Node: "node1"},
-		"vol-2": {VolumeHandle: "vol-2", Driver: "csi.trident.netapp.io", Device: "dm-1", Node: "node1"},
-		"vol-3": {VolumeHandle: "vol-3", Driver: "csi.hpe.com", Device: "dm-2", Node: "node1"},
+		"vol-1": {VolumeHandle: "vol-1", Driver: "driver-a", Device: "dm-0", Node: "node1"},
+		"vol-2": {VolumeHandle: "vol-2", Driver: "driver-a", Device: "dm-1", Node: "node1"},
+		"vol-3": {VolumeHandle: "vol-3", Driver: "driver-b", Device: "dm-2", Node: "node1"},
 	}
 	m.Reconcile(volumes)
 
 	expected := `
 # HELP csiaddons_volume_device_exporter_volumes_discovered Number of volumes discovered per driver.
 # TYPE csiaddons_volume_device_exporter_volumes_discovered gauge
-csiaddons_volume_device_exporter_volumes_discovered{driver="csi.hpe.com"} 1
-csiaddons_volume_device_exporter_volumes_discovered{driver="csi.trident.netapp.io"} 2
+csiaddons_volume_device_exporter_volumes_discovered{driver="driver-a"} 2
+csiaddons_volume_device_exporter_volumes_discovered{driver="driver-b"} 1
 `
 	if err := testutil.CollectAndCompare(m.volumesDiscovered, strings.NewReader(expected)); err != nil {
 		t.Errorf("unexpected metric output: %v", err)
@@ -124,15 +124,13 @@ func TestSetLastSuccessfulNow_UpdatesGauge(t *testing.T) {
 
 func TestIncDiscoveryErrors_IncrementsCounter(t *testing.T) {
 	m := New()
-	m.IncDiscoveryErrors("trident")
-	m.IncDiscoveryErrors("trident")
-	m.IncDiscoveryErrors("hpe")
+	m.IncDiscoveryErrors("kubelet")
+	m.IncDiscoveryErrors("kubelet")
 
 	expected := `
 # HELP csiaddons_volume_device_exporter_discovery_errors_total Total number of discovery errors by discoverer.
 # TYPE csiaddons_volume_device_exporter_discovery_errors_total counter
-csiaddons_volume_device_exporter_discovery_errors_total{discoverer="hpe"} 1
-csiaddons_volume_device_exporter_discovery_errors_total{discoverer="trident"} 2
+csiaddons_volume_device_exporter_discovery_errors_total{discoverer="kubelet"} 2
 `
 	if err := testutil.CollectAndCompare(m.discoveryErrors, strings.NewReader(expected)); err != nil {
 		t.Errorf("unexpected metric output: %v", err)

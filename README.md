@@ -22,9 +22,8 @@ csiaddons_volume_node_device_info{node="worker-1", volume_handle="csi-vol-id", d
 
 ### Discovery Strategy
 
-- **Driver-specific JSON:** Reads Trident tracking files and HPE `deviceInfo.json` for direct volume-to-device mapping.
-- **Universal fallback (filesystem volumes):** Walks kubelet pod directories (`pods/*/volumes/kubernetes.io~csi/*/`), reads `vol_data.json`, and uses `stat()` on the `mount/` subdirectory to resolve the block device via sysfs. A mount-propagation sanity check prevents false positives if `HostToContainer` propagation fails. Requires `mountPropagation: HostToContainer` on the kubelet volume mount.
-- **Universal fallback (block volumes):** Walks `pods/*/volumeDevices/kubernetes.io~csi/*/`, `stat()`s the device file for `st_rdev`, and reads `vol_data.json` from the plugin staging path (`plugins/kubernetes.io~csi/volumeDevices/<specName>/data/`). Same sysfs resolution as filesystem volumes.
+- **Filesystem volumes:** Walks kubelet pod directories (`pods/*/volumes/kubernetes.io~csi/*/`), reads `vol_data.json`, and uses `stat()` on the `mount/` subdirectory to resolve the block device via sysfs. A mount-propagation sanity check prevents false positives if `HostToContainer` propagation fails. Requires `mountPropagation: HostToContainer` on the kubelet volume mount.
+- **Block volumes:** Walks `pods/*/volumeDevices/kubernetes.io~csi/*/`, `stat()`s the device file for `st_rdev`, and reads `vol_data.json` from the plugin staging path (`plugins/kubernetes.io~csi/volumeDevices/<specName>/data/`). Same sysfs resolution as filesystem volumes.
 
 ### Supported Drivers
 
@@ -91,7 +90,6 @@ oc apply -n csi-volume-device-exporter -f deploy/podmonitor.yaml
 | `--log-level` | `info` | Log level (debug, info, warn, error) |
 | `--host-sys` | `/host/sys` | Path to host `/sys` mount inside the container |
 | `--kubelet-root` | `/var/lib/kubelet` | Path to kubelet root (must have `mountPropagation: HostToContainer`) |
-| `--host-trident-tracking` | `/host/trident/tracking` | Path to host Trident tracking dir inside the container |
 | `--version` | — | Print version and exit |
 
 | Environment Variable | Required | Description |
@@ -152,7 +150,7 @@ make clean          # Remove build artifacts
 ```
 cmd/exporter/           — binary entrypoint
 pkg/
-  discovery/            — volume-to-block-device mapping (kubelet, Trident, HPE)
+  discovery/            — volume-to-block-device mapping (kubelet)
   monitoring/
     metrics/            — Prometheus metric definitions
     rules/

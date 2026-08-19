@@ -34,7 +34,6 @@ func main() {
 		logLevel     = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 		hostSys      = flag.String("host-sys", "/host/sys", "Path to host /sys mount inside container")
 		kubeletRoot  = flag.String("kubelet-root", "/var/lib/kubelet", "Path to kubelet root (must have mountPropagation: HostToContainer)")
-		hostTrident  = flag.String("host-trident-tracking", "/host/trident/tracking", "Path to host Trident tracking dir inside container")
 		showVersion  = flag.Bool("version", false, "Print version and exit")
 	)
 	flag.Parse()
@@ -67,7 +66,6 @@ func main() {
 	for _, p := range []struct{ name, val string }{
 		{"host-sys", *hostSys},
 		{"kubelet-root", *kubeletRoot},
-		{"host-trident-tracking", *hostTrident},
 	} {
 		clean := filepath.Clean(p.val)
 		if !filepath.IsAbs(clean) || strings.Contains(clean, "..") {
@@ -77,14 +75,7 @@ func main() {
 		}
 	}
 
-	// Kubelet runs first — it is the authoritative source for volume-to-device
-	// mappings. Optional discoverers (Trident, HPE) run after and can only fill
-	// gaps (volume_handles not already discovered by kubelet).
-	discoverers := []discovery.Discoverer{
-		discovery.NewKubeletDiscoverer(*kubeletRoot, *hostSys, nodeName, logger),
-		discovery.NewTridentDiscoverer(*hostTrident, *hostSys, nodeName, logger),
-		discovery.NewHPEDiscoverer(*kubeletRoot, *hostSys, nodeName, logger),
-	}
+	discoverer := discovery.NewKubeletDiscoverer(*kubeletRoot, *hostSys, nodeName, logger)
 
 	m := metrics.New()
 
@@ -152,92 +143,55 @@ func main() {
 		"poll_interval", pollInterval.String(),
 		"node", nodeName)
 
-	run(ctx, discoverers, m, logger, &lastSuccessTime, &lastSuccessMu, *pollInterval)
+	run(ctx, discoverer, m, logger, &lastSuccessTime, &lastSuccessMu, *pollInterval)
 
 	shutdown(server, logger)
 }
 
-func run(ctx context.Context, discoverers []discovery.Discoverer, m *metrics.Metrics, logger *slog.Logger, lastSuccess *time.Time, mu *sync.RWMutex, interval time.Duration) {
+func run(ctx context.Context, d discovery.Discoverer, m *metrics.Metrics, logger *slog.Logger, lastSuccess *time.Time, mu *sync.RWMutex, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	runDiscovery(ctx, discoverers, m, logger, lastSuccess, mu)
+	runDiscovery(ctx, d, m, logger, lastSuccess, mu)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			runDiscovery(ctx, discoverers, m, logger, lastSuccess, mu)
+			runDiscovery(ctx, d, m, logger, lastSuccess, mu)
 		}
 	}
 }
 
-func runDiscovery(ctx context.Context, discoverers []discovery.Discoverer, m *metrics.Metrics, logger *slog.Logger, lastSuccess *time.Time, mu *sync.RWMutex) {
+func runDiscovery(ctx context.Context, d discovery.Discoverer, m *metrics.Metrics, logger *slog.Logger, lastSuccess *time.Time, mu *sync.RWMutex) {
 	if ctx.Err() != nil {
 		return
 	}
 
-	volumes := make(map[string]discovery.VolumeDevice)
-	totalErrors := 0
-	totalSuccesses := 0
-	kubeletSucceeded := false
+	results, err := d.Discover(ctx)
+	if err != nil {
+		m.IncDiscoveryErrors(d.Name())
+		logger.Error("discovery failed, skipping reconcile and health update",
+			"discoverer", d.Name(), "error", err)
+		return
+	}
 
-	for _, d := range discoverers {
-		results, err := d.Discover(ctx)
-
-		if err != nil {
-			totalErrors++
-			m.IncDiscoveryErrors(d.Name())
-			logger.Warn("discovery error", "discoverer", d.Name(), "error", err)
+	volumes := make(map[string]discovery.VolumeDevice, len(results))
+	for _, v := range results {
+		if v.VolumeHandle == "" || v.Device == "" {
 			continue
 		}
-
-		totalSuccesses++
-		if d.Name() == "kubelet" {
-			kubeletSucceeded = true
-		}
-		for _, v := range results {
-			if v.VolumeHandle == "" || v.Device == "" {
-				continue
-			}
-			if existing, exists := volumes[v.VolumeHandle]; exists {
-				if existing.Device != v.Device {
-					logger.Warn("conflicting device for volume_handle, keeping first",
-						"volume_handle", v.VolumeHandle,
-						"kept_device", existing.Device,
-						"kept_discoverer", existing.Driver,
-						"ignored_device", v.Device,
-						"ignored_discoverer", v.Driver,
-					)
-				}
-				continue
-			}
-			volumes[v.VolumeHandle] = v
-		}
+		volumes[v.VolumeHandle] = v
 	}
 
-	// Reconcile only when the kubelet discoverer succeeded. The kubelet is
-	// the authoritative source for volume-to-device mappings; optional
-	// discoverers (Trident, HPE) can succeed with empty results and must
-	// not cause reconcile to delete kubelet-discovered series.
-	switch {
-	case kubeletSucceeded:
-		m.Reconcile(volumes)
-		mu.Lock()
-		m.SetLastSuccessfulNow()
-		*lastSuccess = time.Now()
-		mu.Unlock()
-	case totalSuccesses > 0:
-		logger.Warn("kubelet discoverer failed but others succeeded; skipping reconcile to avoid stale-series deletion",
-			"successes", totalSuccesses, "errors", totalErrors)
-	default:
-		logger.Error("all discoverers failed, skipping reconcile and health update",
-			"discoverer_count", len(discoverers))
-	}
+	m.Reconcile(volumes)
+	mu.Lock()
+	m.SetLastSuccessfulNow()
+	*lastSuccess = time.Now()
+	mu.Unlock()
 
-	logger.Debug("discovery cycle complete",
-		"volumes_found", len(volumes), "errors", totalErrors, "successes", totalSuccesses)
+	logger.Debug("discovery cycle complete", "volumes_found", len(volumes))
 }
 
 func shutdown(server *http.Server, logger *slog.Logger) {
