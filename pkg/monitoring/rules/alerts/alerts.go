@@ -105,7 +105,7 @@ func multipathAlerts() []Alert {
   "sysfs_name", "$1", "device", "(.*)"
 )
 * on(sysfs_name, node) group_left(device)
-node_dmmultipath_device_info`
+label_replace(node_dmmultipath_device_info, "node", "$1", "instance", "(.+)")`
 
 	return []Alert{
 		{
@@ -113,7 +113,9 @@ node_dmmultipath_device_info`
 			Expr: `(` + pvToMultipathExpr + `)
 * on(device, node) group_left()
 (
-  count by(device, node) (node_dmmultipath_path_state{state!~"running|live"} == 1) > 0
+  count by(device, node) (
+    label_replace(node_dmmultipath_path_state{state!~"running|live"}, "node", "$1", "instance", "(.+)") == 1
+  ) > 0
 )`,
 			For: "5m",
 			Labels: map[string]string{
@@ -130,7 +132,7 @@ node_dmmultipath_device_info`
 			Expr: `(` + pvToMultipathExpr + `)
 * on(device, node) group_left()
 (
-  node_dmmultipath_device_paths_active == 0
+  label_replace(node_dmmultipath_device_paths_active, "node", "$1", "instance", "(.+)") == 0
 )`,
 			For: "1m",
 			Labels: map[string]string{
@@ -156,7 +158,7 @@ func nvmeSubsystemAlerts() []Alert {
 * on(volume_handle) group_left(device, node, driver)
 csiaddons_volume_node_device_info{device=~"nvme.*"}
 * on(device, node) group_left(subsystem)
-node_nvmesubsystem_namespace_info`
+label_replace(node_nvmesubsystem_namespace_info, "node", "$1", "instance", "(.+)")`
 
 	return []Alert{
 		{
@@ -164,7 +166,8 @@ node_nvmesubsystem_namespace_info`
 			Expr: `(` + pvToNVMeExpr + `)
 * on(subsystem, node) group_left()
 (
-  node_nvmesubsystem_paths - node_nvmesubsystem_paths_live > 0
+  label_replace(node_nvmesubsystem_paths, "node", "$1", "instance", "(.+)")
+  - label_replace(node_nvmesubsystem_paths_live, "node", "$1", "instance", "(.+)") > 0
 )`,
 			For: "5m",
 			Labels: map[string]string{
@@ -181,7 +184,7 @@ node_nvmesubsystem_namespace_info`
 			Expr: `(` + pvToNVMeExpr + `)
 * on(subsystem, node) group_left()
 (
-  node_nvmesubsystem_paths_live == 0
+  label_replace(node_nvmesubsystem_paths_live, "node", "$1", "instance", "(.+)") == 0
 )`,
 			For: "1m",
 			Labels: map[string]string{
