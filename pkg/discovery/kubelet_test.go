@@ -3,10 +3,14 @@ package discovery
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
 // setupTestSysfs creates /sys/dev/block/{major}:{minor} -> target symlink
@@ -304,6 +308,63 @@ func TestKubeletDiscoverer_BlockVolume_SkipsWhenStatFails(t *testing.T) {
 	}
 	if len(results) != 0 {
 		t.Errorf("expected 0 results when device file is missing, got %d", len(results))
+	}
+}
+
+func TestKubeletDiscoverer_BlockVolumeSymlink(t *testing.T) {
+	tmpDir := t.TempDir()
+	kubeletRoot := filepath.Join(tmpDir, "kubelet")
+	sysDir := filepath.Join(tmpDir, "sys")
+	pvName := "pvc-block-symlink"
+	podUID := "pod-uid-block-symlink"
+
+	// Kubelet publishes raw-block volumes as a symlink to the device, rather
+	// than as a directory containing a device file.
+	blockDir := filepath.Join(kubeletRoot, "pods", podUID, "volumeDevices", "kubernetes.io~csi")
+	if err := os.MkdirAll(blockDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/dev/null", filepath.Join(blockDir, pvName)); err != nil {
+		t.Fatal(err)
+	}
+
+	var st unix.Stat_t
+	if err := unix.Stat("/dev/null", &st); err != nil {
+		t.Fatal(err)
+	}
+	setupTestSysfs(t, sysDir, fmt.Sprintf("%d:%d", unix.Major(st.Rdev), unix.Minor(st.Rdev)), "../../devices/virtual/block/sda", "")
+
+	// Unlike pod volume paths, raw-block metadata is stored under
+	// plugins/kubernetes.io/csi.
+	volDataDir := filepath.Join(kubeletRoot, "plugins", "kubernetes.io", "csi", "volumeDevices", pvName, "data")
+	if err := os.MkdirAll(volDataDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(volData{
+		VolumeHandle:        "block-vol-handle-symlink",
+		DriverName:          "csi.example.com",
+		SpecVolID:           pvName,
+		VolumeLifecycleMode: "Persistent",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(volDataDir, "vol_data.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	d := NewKubeletDiscoverer(kubeletRoot, sysDir, "worker-1", slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	results, err := d.Discover(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, want := results, []VolumeDevice{{
+		VolumeHandle: "block-vol-handle-symlink",
+		Driver:       "csi.example.com",
+		Device:       "sda",
+		Node:         "worker-1",
+	}}; !reflect.DeepEqual(got, want) {
+		t.Errorf("unexpected discovery result: got %+v, want %+v", got, want)
 	}
 }
 
