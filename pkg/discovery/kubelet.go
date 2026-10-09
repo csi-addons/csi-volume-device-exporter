@@ -23,9 +23,9 @@ import (
 //  4. Resolve via /sys/dev/block/{major}:{minor} to get the kernel device name
 //  5. For DM devices, walk through LUKS to the underlying multipath device
 //
-// Block volumes: walk /var/lib/kubelet/pods/*/volumeDevices/kubernetes.io~csi/*/
+// Block volumes: walk /var/lib/kubelet/pods/*/volumeDevices/kubernetes.io~csi/*
 // and for each entry:
-//  1. stat() the device file to get the major:minor from st_rdev
+//  1. stat() the device symlink target to get the major:minor from st_rdev
 //  2. Read vol_data.json from the plugin staging path
 //  3. Resolve via sysfs as with filesystem volumes
 //
@@ -128,7 +128,8 @@ func (d *KubeletDiscoverer) Discover(ctx context.Context) ([]VolumeDevice, error
 			}
 		}
 
-		// Block volumes: pods/<uid>/volumeDevices/kubernetes.io~csi/<pv>/<pv>
+		// Block volumes: pods/<uid>/volumeDevices/kubernetes.io~csi/<pv>. Kubelet
+		// publishes <pv> as a symlink to the resolved device.
 		csiBlockDir := filepath.Join(podsDir, podEntry.Name(), "volumeDevices", "kubernetes.io~csi")
 		blockEntries, err := os.ReadDir(csiBlockDir)
 		if err != nil {
@@ -138,12 +139,12 @@ func (d *KubeletDiscoverer) Discover(ctx context.Context) ([]VolumeDevice, error
 			if ctx.Err() != nil {
 				break
 			}
-			if !blockEntry.IsDir() {
+			if blockEntry.IsDir() {
 				continue
 			}
 
 			specName := blockEntry.Name()
-			devFilePath := filepath.Join(csiBlockDir, specName, specName)
+			devFilePath := filepath.Join(csiBlockDir, specName)
 
 			var st unix.Stat_t
 			if err := unix.Stat(devFilePath, &st); err != nil {
@@ -161,7 +162,7 @@ func (d *KubeletDiscoverer) Discover(ctx context.Context) ([]VolumeDevice, error
 			}
 
 			// vol_data.json for block volumes lives at the plugin staging path
-			volDataDir := filepath.Join(d.kubeletRoot, "plugins", "kubernetes.io~csi", "volumeDevices", specName, "data")
+			volDataDir := filepath.Join(d.kubeletRoot, "plugins", "kubernetes.io", "csi", "volumeDevices", specName, "data")
 			vd, err := readVolData(volDataDir)
 			if err != nil {
 				d.logger.Debug("skipping block volume: cannot read vol_data.json from staging path",
