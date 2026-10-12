@@ -1,0 +1,8 @@
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-5.1 AS builder
+WORKDIR /go/src/github.com/csi-addons/csi-volume-device-exporter
+COPY . .
+RUN make build
+
+FROM registry.ci.openshift.org/ocp/5.1:base-rhel9
+COPY --from=builder /go/src/github.com/csi-addons/csi-volume-device-exporter/bin/csi-volume-device-exporter /usr/bin/
+ENTRYPOINT ["/usr/bin/csi-volume-device-exporter"]
