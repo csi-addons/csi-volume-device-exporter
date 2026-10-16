@@ -276,26 +276,13 @@ func TestKubeletDiscoverer_BlockVolume_SkipsWhenStatFails(t *testing.T) {
 	pvName := "pvc-block-001"
 	podUID := "pod-uid-block-001"
 
-	// Create the volumeDevices directory structure without a device file.
-	// stat() on the missing file should cause the block volume to be skipped.
-	blockDir := filepath.Join(kubeletRoot, "pods", podUID, "volumeDevices", "kubernetes.io~csi", pvName)
+	// Create a dangling device symlink. stat() should cause the block volume
+	// to be skipped.
+	blockDir := filepath.Join(kubeletRoot, "pods", podUID, "volumeDevices", "kubernetes.io~csi")
 	if err := os.MkdirAll(blockDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-
-	// Create vol_data.json at the plugin staging path
-	volDataDir := filepath.Join(kubeletRoot, "plugins", "kubernetes.io~csi", "volumeDevices", pvName, "data")
-	if err := os.MkdirAll(volDataDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	vd := volData{
-		VolumeHandle:        "block-vol-handle-001",
-		DriverName:          "csi-powerstore.dellemc.com",
-		SpecVolID:           pvName,
-		VolumeLifecycleMode: "Persistent",
-	}
-	data, _ := json.Marshal(vd)
-	if err := os.WriteFile(filepath.Join(volDataDir, "vol_data.json"), data, 0o644); err != nil {
+	if err := os.Symlink("/missing-device", filepath.Join(blockDir, pvName)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -307,7 +294,7 @@ func TestKubeletDiscoverer_BlockVolume_SkipsWhenStatFails(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(results) != 0 {
-		t.Errorf("expected 0 results when device file is missing, got %d", len(results))
+		t.Errorf("expected 0 results when device symlink is dangling, got %d", len(results))
 	}
 }
 
@@ -376,29 +363,13 @@ func TestKubeletDiscoverer_BlockVolume_SkipsRegularFile(t *testing.T) {
 	pvName := "pvc-block-002"
 	podUID := "pod-uid-block-002"
 
-	// Create the volumeDevices directory structure with a regular file
-	// (st_rdev will be 0 for regular files).
-	blockDir := filepath.Join(kubeletRoot, "pods", podUID, "volumeDevices", "kubernetes.io~csi", pvName)
+	// Create a regular file at the device entry location. st_rdev is zero for
+	// regular files.
+	blockDir := filepath.Join(kubeletRoot, "pods", podUID, "volumeDevices", "kubernetes.io~csi")
 	if err := os.MkdirAll(blockDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(blockDir, pvName), []byte("fake"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create vol_data.json at the plugin staging path
-	volDataDir := filepath.Join(kubeletRoot, "plugins", "kubernetes.io~csi", "volumeDevices", pvName, "data")
-	if err := os.MkdirAll(volDataDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	vd := volData{
-		VolumeHandle:        "block-vol-handle-002",
-		DriverName:          "csi-powerstore.dellemc.com",
-		SpecVolID:           pvName,
-		VolumeLifecycleMode: "Persistent",
-	}
-	data, _ := json.Marshal(vd)
-	if err := os.WriteFile(filepath.Join(volDataDir, "vol_data.json"), data, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -423,13 +394,12 @@ func TestKubeletDiscoverer_BlockVolume_SkipsMissingVolData(t *testing.T) {
 	pvName := "pvc-block-003"
 	podUID := "pod-uid-block-003"
 
-	// Create the volumeDevices directory structure with a regular file
-	// but NO vol_data.json at the staging path.
-	blockDir := filepath.Join(kubeletRoot, "pods", podUID, "volumeDevices", "kubernetes.io~csi", pvName)
+	// Create a valid device symlink but no vol_data.json at the staging path.
+	blockDir := filepath.Join(kubeletRoot, "pods", podUID, "volumeDevices", "kubernetes.io~csi")
 	if err := os.MkdirAll(blockDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(blockDir, pvName), []byte("fake"), 0o644); err != nil {
+	if err := os.Symlink("/dev/null", filepath.Join(blockDir, pvName)); err != nil {
 		t.Fatal(err)
 	}
 

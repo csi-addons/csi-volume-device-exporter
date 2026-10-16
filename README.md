@@ -23,7 +23,7 @@ csiaddons_volume_node_device_info{node="worker-1", volume_handle="csi-vol-id", d
 ### Discovery Strategy
 
 - **Filesystem volumes:** Walks kubelet pod directories (`pods/*/volumes/kubernetes.io~csi/*/`), reads `vol_data.json`, and uses `stat()` on the `mount/` subdirectory to resolve the block device via sysfs. A mount-propagation sanity check prevents false positives if `HostToContainer` propagation fails. Requires `mountPropagation: HostToContainer` on the kubelet volume mount.
-- **Block volumes:** Walks `pods/*/volumeDevices/kubernetes.io~csi/*/`, `stat()`s the device file for `st_rdev`, and reads `vol_data.json` from the plugin staging path (`plugins/kubernetes.io~csi/volumeDevices/<specName>/data/`). Same sysfs resolution as filesystem volumes.
+- **Block volumes:** Walks device symlinks at `pods/*/volumeDevices/kubernetes.io~csi/<specName>`, `stat()`s their targets for `st_rdev`, and reads `vol_data.json` from the plugin staging path (`plugins/kubernetes.io/csi/volumeDevices/<specName>/data/`). Same sysfs resolution as filesystem volumes.
 
 ### Supported Drivers
 
