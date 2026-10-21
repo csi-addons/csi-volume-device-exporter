@@ -119,6 +119,7 @@ The exporter runs as root (UID 0) with:
 - `capabilities.drop: [ALL]`
 - `readOnlyRootFilesystem: true`
 - `seccompProfile: RuntimeDefault`
+- `seLinuxOptions.type: spc_t`
 - `seLinuxOptions.level: "s0"`
 - No Kubernetes API server access (`automountServiceAccountToken: false`)
 - All hostPath mounts are read-only
@@ -129,6 +130,13 @@ The exporter runs as root (UID 0) with:
 - Static binary (`CGO_ENABLED=0`)
 
 Root is required because kubelet writes `vol_data.json` with `0600` permissions.
+
+On SELinux-enabled nodes, this deployment uses `spc_t:s0` to read host metadata
+such as kubelet's `vol_data.json`. Setting only `level: "s0"` leaves the default
+`container_t` type, which does not permit these file reads under the standard
+container SELinux policy. `spc_t` grants broad SELinux access; the other container
+security restrictions above still apply. The OpenShift SCC uses `RunAsAny` to
+permit this explicit context, but does not assign it automatically.
 
 ## Development
 

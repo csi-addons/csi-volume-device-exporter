@@ -60,6 +60,8 @@ spec:
             seccompProfile:
               type: RuntimeDefault
             seLinuxOptions:
+              # Required to read host metadata; setting only s0 is insufficient.
+              type: spc_t
               level: "s0"
           resources:
             requests:
