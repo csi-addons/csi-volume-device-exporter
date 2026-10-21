@@ -110,11 +110,17 @@ NVMe alerts join on `(subsystem, node)` to prevent cross-node false positives.
 - `runAsUser: 0` (needed to read kubelet's `vol_data.json` with 0600 permissions)
 - `readOnlyRootFilesystem: true`
 - `seccompProfile: RuntimeDefault`
+- `seLinuxOptions.type: spc_t`
 - `seLinuxOptions.level: "s0"`
 - Read-only hostPath mounts: `/var/lib/kubelet` (with `mountPropagation: HostToContainer`), `/sys`
 - No Kubernetes API access (`automountServiceAccountToken: false`)
 - Distroless base image (no shell)
 - Static binary (`CGO_ENABLED=0`)
+
+The `spc_t` SELinux domain grants broad access needed to read host metadata;
+setting only the level to `s0` is insufficient. See the
+[README security section](../../README.md#security) for the SELinux requirements
+and remaining container restrictions.
 
 ## Deployment Lifecycle
 

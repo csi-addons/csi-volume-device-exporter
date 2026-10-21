@@ -2,15 +2,14 @@ apiVersion: security.openshift.io/v1
 kind: SecurityContextConstraints
 metadata:
   name: csi-volume-device-exporter
-# A custom SCC is used instead of the built-in 'privileged' SCC to follow
-# the principle of least privilege. The exporter requires:
-#   - hostPath volumes (read-only): /var/lib/kubelet (with mountPropagation: HostToContainer), /sys
-# It explicitly does NOT need: privileged containers, hostPID, host networking,
-# host ports, host IPC, or any Linux capabilities.
+# The exporter uses read-only hostPath mounts and explicitly requests the
+# spc_t:s0 SELinux context to read host metadata. RunAsAny permits this context
+# but does not assign it; the DaemonSet must request it.
+# spc_t grants broad SELinux access. This custom SCC still disallows privileged
+# containers, hostPID, host networking, host ports, and host IPC.
 # mountPropagation: HostToContainer on /var/lib/kubelet makes the host's CSI
 # mounts visible via stat(), eliminating the need for hostPID or a separate
 # /proc bind mount.
-# Using 'privileged' would grant all of the above unnecessarily.
 allowPrivilegedContainer: false
 allowHostDirVolumePlugin: true
 allowHostPID: false
